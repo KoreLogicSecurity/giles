@@ -1,0 +1,89 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  This example illustrates a simple production system that, when given
+  facts about individuals and families, infers to which families individuals
+  may belong.  This example is of course contrived, but illustrates basic
+  engine features, and especially highlights the foreign function interface.
+
+COMPILING THE ENGINE
+
+  After installing Giles, this engine can be compiled using the following
+  command:
+
+    $ giles -o family.sql family.yml
+
+LOADING THE ENGINE
+
+  The engine can be loaded into a SQLite instance with the following commands:
+
+    $ sqlite3
+    sqlite> PRAGMA recursive_triggers = ON; /* If necessary. */
+    sqlite> PRAGMA foreign_keys = ON; /* If necessary. */
+    sqlite> .read family.sql
+
+USING THE ENGINE
+
+  This engine describes four classes of facts.
+
+  Each known family has a fact listing its family name:
+
+    INSERT INTO Giles_KnownFamilies_Facts(Family) VALUES('Jones');
+    INSERT INTO Giles_KnownFamilies_Facts(Family) VALUES('King');
+    INSERT INTO Giles_KnownFamilies_Facts(Family) VALUES('Smith');
+
+  Each individual person has a fact giving his or her first and last names:
+
+    INSERT INTO Giles_PersonIsNamed_Facts(FirstName, LastName) VALUES('Rob', 'King');
+    INSERT INTO Giles_PersonIsNamed_Facts(FirstName, LastName) VALUES('Betsy', 'King');
+    INSERT INTO Giles_PersonIsNamed_Facts(FirstName, LastName) VALUES('John', 'Smith');
+    INSERT INTO Giles_PersonIsNamed_Facts(FirstName, LastName) VALUES('John', 'Jones');
+
+  These statements are also available in the input.sql file that can be read
+  directly by sqlite.
+
+  The engine will automatically produce MightBelongToFamily facts that
+  indicate which individuals might belong to which families:
+
+    sqlite> SELECT Family, FirstName FROM Giles_MightBelongToFamily_Facts;
+    Family      FirstName
+    ----------  ----------
+    King        Rob      
+    King        Betsy   
+    Smith       John   
+    Jones       John  
+
+  This statement is also available in the output.sql file that can be read
+  directly by sqlite.
+
+  An explicit exception can be made for any individual by asserting a
+  KnownException fact:
+
+    sqlite> INSERT INTO Giles_KnownException_Facts(FirstName, Family) VALUES('John', 'Smith');
+    sqlite> SELECT Family, FirstName FROM Giles_MightBelongToFamily_Facts;
+    Family      FirstName
+    ----------  ----------
+    King        Rob    
+    King        Betsy 
+    Jones       John 
+ 
+  Removing the exception will of course restore the original inference:
+
+    sqlite> DELETE FROM Giles_KnownException_Facts;
+    sqlite> SELECT Family, FirstName FROM Giles_MightBelongToFamily_Facts;
+    Family      FirstName 
+    ----------  ---------- 
+    King        Rob      
+    King        Betsy   
+    Jones       John   
+    Smith       John  
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+

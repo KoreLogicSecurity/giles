@@ -1,0 +1,88 @@
+######################################################################
+#
+# $Id$
+#
+######################################################################
+#
+# Copyright 2011-2014 KoreLogic, Inc. All Rights Reserved.
+#
+# This software, having been partly or wholly developed and/or
+# sponsored by KoreLogic, Inc., is hereby released under the terms
+# and conditions set forth in the project's "README.LICENSE" file.
+# For a list of all contributors and sponsors, please refer to the
+# project's "README.CREDITS" file.
+#
+######################################################################
+#
+# Purpose: An example production system.
+#
+######################################################################
+
+Functions:
+    Lowercase:
+        External:   LOWER
+        Parameters: [STRING]
+        Returns:    STRING
+
+    Uppercase:
+        External:   UPPER
+        Parameters: [STRING]
+        Returns:    STRING
+
+    Strlen:
+        External:   LENGTH
+        Parameters: [STRING]
+        Returns:    INTEGER
+
+    Substr:
+        External:   SUBSTR
+        Parameters: [STRING, INTEGER, INTEGER]
+        Returns:    STRING
+ 
+Facts:
+    KnownFamilies:
+        Family: STRING
+
+    PersonIsNamed:
+        FirstName:  STRING
+        LastName:   STRING
+
+    MightBelongToFamily:
+        FirstName:  STRING
+        Family:     STRING
+
+    KnownException:
+        FirstName:  STRING
+        Family:     STRING
+
+Rules:
+    PersonMightBelongToFamily:
+        Description: A named person might belong to a known family.
+
+        MatchAll:
+            - Fact:     PersonIsNamed
+              Meaning:  A person has been named.
+              Assign:
+                FirstName:  !expr This.FirstName
+                LastName:   !expr This.LastName
+
+            - Fact:     KnownFamilies
+              Meaning:  A family with a matching name exists.
+              When:     !expr This.Family == UPPERCASE(SUBSTR(Locals.LastName, 1, 1))
+                                             .
+                                             LOWERCASE(SUBSTR(Locals.LastName, 2, STRLEN(Locals.LastName)))
+              Assign:
+                Family: !expr This.Family
+
+        MatchNone:
+            - Fact:     KnownException
+              Meaning:  We know that a particular person isn't a member of a certain family.
+              When:     !expr This.FirstName == Locals.FirstName AND
+                              This.Family    == UPPERCASE(SUBSTR(Locals.LastName, 1, 1))
+                                                .
+                                                LOWERCASE(SUBSTR(Locals.LastName, 2, STRLEN(Locals.LastName)))
+
+        Assert:
+            MightBelongToFamily:
+                FirstName: !expr Locals.FirstName
+                Family:    !expr Locals.Family

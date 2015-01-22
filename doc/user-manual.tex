@@ -1,0 +1,705 @@
+\documentclass[letterpaper,10pt]{article}
+\usepackage{enumerate}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{lmodern}
+
+\lstset{numbers=left,showspaces=false,showtabs=false,breaklines=false,frame=lines,basicstyle=\small\ttfamily,aboveskip=\smallskipamount,belowskip=\smallskipamount}
+
+\begin{document}
+
+\title{The Giles Production Rule System Compiler \\
+       {\normalsize User Manual}}
+\author{The KoreLogic Development Team}
+\date{\normalsize \copyright 2014-2015 KoreLogic, Inc.\\
+See README.LICENSE for licensing terms.}
+
+\maketitle
+
+\section{Introduction}
+Giles~\footnote{Giles is named after the character Rupert Giles from the \textit{Buffy the Vampire Slayer} television and comic book series. The names are pronounced identically, with a soft \emph{G}.} is a compiler that creates \emph{production systems} (or ``engines'' in Giles parlance).
+
+A production system is a program that is typically used to provide some sort of artificial intelligence.
+Giles engines are particularly well-suited to being expert systems, log analyzers, and behavior-detection systems.
+
+Giles is a compiler, meaning that it is not itself a production system, but rather a tool for creating production systems.
+In fact, Giles's defining feature is that its output is not a program in the traditional sense, but rather a schema for a modern, unmodified, SQL-based Relational Database Management System (RDBMS).
+That means that Giles can turn a normal, unmodified RDBMS into a fully functional production system.
+
+This approach has immediate advantages.
+Perhaps the most important is that programmers can use normal database access interfaces, which are ubiquitous; this immediately makes Giles engines accessible to far more programmers than those of traditional systems.
+The engines are also able to take advantage of modern databases' data safety and reliability guarantees, as well as their transactional semantics.
+This means that Giles engines are capable of dealing with huge amounts of data safely, even in the face of system crashes, and over long periods of time.
+These benefits are important given the expected use cases of Giles engines: pre-defined production systems that are built into and provide intelligence for larger, potentially long-running and unattended, systems.
+
+In other words, Giles lets you deploy a production rule system anywhere where you can deploy your (supported) database.
+
+This document describes Giles-the-compiler and Giles-the-language.
+It assumes you (the reader) have a decent understanding of SQL, but does not require that you have any experience with production systems or artificial intelligence.
+In fact, one of Giles's goals is to make production systems (often seen as esoteric) more accessible.
+
+\subsection{What is a Production System, Anyway?}
+A production system (or \emph{production rule system}) is a kind of computer program that is often used to provide some sort of artificial intelligence.
+Production systems are very often used for log and behavior analysis and expert systems.
+Production systems consist of \emph{facts} and \emph{rules}.
+
+A fact is a single datum describing a discrete piece of information in the problem domain of the system.
+Some example facts might be:
+\begin{itemize}
+    \item Suzanne is an astronaut.
+    \item Train \#447 arrived at platform 9$\frac{3}{4}$ at 08:00.
+    \item User ``jdoe'' logged in via terminal \#16 at 12:33.
+\end{itemize}
+The set of all known facts is referred to as the \emph{working memory} of the system.
+
+A rule is a simple ``if-then'' statement.
+The ``if'' part is known as the \emph{predicate}, and specifies a pattern of facts.
+The ``then'' part is known as the \emph{action}.
+When some set of facts in working memory matches the predicate, the action is performed.
+
+Giles defines two possible actions: \emph{assert} and \emph{suppress}.
+The assert action adds a new fact to the working memory, while the suppress action suppresses facts already in working memory.
+When a rule's action is taken, it is said that the rule has \emph{fired}.
+When a rule fires, it can add or remove facts from working memory, which can cause other predicates to match, which can cause other rules to fire, and so on.
+
+Rules only work in the presence of facts.
+They aren't like more traditional computer programs that have well-defined start and end points.
+Instead, a production system sits in a cycle that looks like this:
+\begin{enumerate}[Step 1]
+    \item Find all rules whose predicates are matched by a set of facts in working memory.
+          If there aren't any matching predicates, halt.
+    \item Perform the actions for those rules.
+    \item Go to Step 1.
+\end{enumerate}
+This is called the \emph{recognize-act} cycle, and it executes once for each fact that is added to or removed from working memory.
+
+In other words, when a production system starts up, it just sits there, waiting for the user to add some facts to working memory.
+As facts are added and removed, the production system updates the contents of working memory by adding and removing other facts.
+
+The general workflow for a production system is therefore to add or remove some facts, and then examine working memory to see what it looks like after those changes.
+For example, a log analyzer might have facts in memory representing individual log entries, and other facts representing ``alerts'' that indicate something supsicious was inferred from those logs.
+The user would add one fact per log entry, and then check to see if any alert facts are present.
+
+While this all might sound fairly simple, the trick is doing this all efficiently.
+A given engine might have hundreds of rules and millions of facts, so finding matching predicates quickly is critical to performance.
+That's where Giles comes into play: it creates efficient production systems\footnote{Well, as efficient as possible given the rules that were written.
+It's possible to write inefficient programs in any language.}.
+
+\subsection{What Are Giles-Style Production Systems Good For?}
+Giles creates production systems that are good for finding patterns in large data sets where data is added or removed incrementally over time.
+Some example use cases:
+
+\begin{description}
+    \item[Log Analysis] For example, an engine could be given one fact per log entry, and could correlate multiple log sources to find complex behavioral patterns.
+    \item[Inference Engines] As facts are added to an engine, a more complete picture can be built up of a system. For example, a network scanning tool might assert facts about discovered devices and the engine can infer client-server relationships, device operating systems, and other pieces of complex information.
+    \item[Expert Systems] Facts can be asserted listing symptoms. The individual symptoms could be correlated to infer possible diagnoses. As more diagnoses are added from more and more patients over time, inferences can be made about epidemiological data.
+\end{description}
+
+\subsection{What You Need to Already Know}
+Giles's most interesting feature is that it compiles a production system description in a SQL database schema.
+This manual assumes that you are already at least somewhat familiar with SQL.
+If not, there are many excellent tutorials available on the Web.
+The examples in this manual all use the ubiquitous and excellent SQLite database engine, and its dialect of SQL is documented at \url{https://www.sqlite.org/lang.html}.
+
+Giles's input takes the form of YAML (\url{http://www.yaml.org}) files.
+YAML, which stands for ``YAML Ain't Markup Language'' is a human-readable data serialization language.
+Some familiarity with YAML might come in handy when reading this manual, but it is not strictly necessary.
+(A nice side effect of using YAML for Giles's input language is that there are many automated tools that can process YAML files, making it easy to write programs that can manipulate Giles source code.)
+
+\section{Getting Your Feet Wet}
+The best way to learn anything is by following examples.
+This section describes a basic Giles engine piece by piece, to give you a flavor of the language and the output engine.
+
+\subsection{Facts, Fact Classes, and Rules}
+In Giles, facts are made up of fields.
+For example, a fact that describes activity in a train station might have fields for train number, arrival time, departure time, destination, etc.
+A fact that describes a person might have fields for first and last name, age, and home address.
+
+In Giles, every fact belongs to exactly one \emph{fact class}, and a fact's class determines what fields it has.
+Every engine has a section called \emph{Facts} that describes the fact classes known to the engine.
+
+Every fact has every field filled in --- there is no concept of default or \texttt{NULL} values for fields.
+
+In engines, facts are just rows in normal database tables.
+New facts are added to working memory (``asserted'') by inserting rows into tables, and facts are removed from working memory (``retracted'') by deleting rows.
+Giles guarantees (thanks to database transactions) that fact tables are always globally consistent; after a fact is inserted or removed, all of the fact tables in the system are updated atomically and can be inspected without fear of inaccurate or missing data.
+
+Facts asserted by the user are always distinct.
+That is, the user is free to assert as many facts of the same class and with identical fields as desired.
+This is important in situations where multiple facts may be intrinsicly indistinguishable (say, for example, in an aritificial intelligence problem dealing with differently colored blocks, some duplicated, where any red block is sufficient).
+The user can always add a ``distinguishing'' field to a fact class (a name, for example) if necessary.
+Automated processes can deduplicate data as required.
+
+When Giles compiles an engine, it turns rules into triggers on fact tables.
+That way, when a new fact (row) is inserted or removed from working memory (tables), these triggers fire and perform all of the actions defined by the rules.
+
+That means that working with a Giles engine is as simple as performing normal SQL \texttt{INSERT}, \texttt{DELETE}, and \texttt{SELECT} statements.
+What could be easier?
+
+\subsection{All Men Are Socrates}
+Without further ado, here is a simple engine that infers that if someone is human, he or she is mortal:
+\begin{lstlisting}
+Facts:
+    IsHuman:
+        Person: STRING
+
+    IsMortal:
+        Person: STRING
+
+Rules:
+    AllHumansAreMortal:
+        Description: All humans are mortal.
+
+        MatchAll:
+            - Fact:    IsHuman
+              Meaning: The named person is human.
+              Assign:
+                Person: !expr This.Person
+
+        Assert:
+            IsMortal:
+                Person: !expr Locals.Person
+\end{lstlisting}
+
+Engine descriptions are purely declarative; it helps to keep this in mind while reading through this section.
+Let's look at this engine piece-by-piece:
+
+\subsubsection*{Lines 1--6}
+Here we define two fact classes, \texttt{IsHuman} and \texttt{IsMortal}.
+\texttt{IsHuman} facts are assertions that some person is human, while \texttt{IsMortal} facts are assertions that some person is mortal.
+
+\subsubsection*{Lines 8--10}
+Here we define the rules for the engine; this engine only has one.
+This rule is named \texttt{AllHumansAreMortal}.
+We give the rule a human-readable description (such a description is mandatory for reasons that will be explained later).
+
+\subsubsection*{Lines 12--16}
+Here is the predicate for the rule.
+All predciates have at least a \texttt{MatchAll} clause, which states ``this clause is true if all of my sub-clauses are true''.
+In this case, there is just one sub-clause, introduced by the \texttt{-} (hyphen).
+
+The sub-clause declares a fact class to test for (\texttt{IsHuman}), and gives a human-readable description of what that fact means.
+
+The sub-clause also performs an \emph{assignment}.
+Assignments extract parts of matched facts and store them in \emph{local variables}.
+These local variables can then be used in expressions in other parts of the predicate; it is through local variables that facts can be interrelated by rules.
+
+Remember that engine descriptions are declarative.
+While ``assignment'' might sound procedural\footnote{Okay, it \emph{does} sound procedural.
+Sorry.}, it's still declarative.
+Predicates are completely order-insensitive, meaning that the facts that they match can be inserted into working memory in any order.
+In light of this, it might have been better to call it ``extraction'' rather than ``assignment''.
+
+The assignment here creates a new local variable called \texttt{Person} and gives it a computed value based on an expression.
+The \texttt{!expr} tag indicates that a dynamic expression is to follow.
+These expressions can be arbitrarily complicated, but in this case, the expression is simple: it's just the value of the \texttt{Person} field of the fact matched by this clause (the \texttt{This} specifier refers to ``the fact matched by this clause'').
+
+A new ``instance'' of a rule is created for each matching set of facts in working memory.
+Since there is only one matching clause in our predicate, that means there will be a new instance of this rule for each \texttt{IsHuman} fact in working memory, and each instance will have its own value for the \texttt{Person} local variable.
+
+\subsubsection*{Lines 18--20}
+Here we define the rule's action.
+In this case, it's \texttt{Assert}, meaning we're going to add a new fact to working memory.
+Assert actions have a single sub-clause, which is the name of a fact class (in this case, \texttt{IsMortal}), which itself contains the values that populate the fields of this new fact.
+
+On line 20, we provide a value for the new fact's only field (\texttt{Person}).
+Note that this is a dynamic expression, as indicated by the \texttt{!expr} tag.
+Again, this expression could be arbitrarily complicated, but we go for simple in this example: just the value of the \texttt{Person} local variable.
+
+This assertion completes our rule: we infer that if someone is human, he or she is mortal.
+
+\subsection{Compiling and Loading}
+Let's compile this engine.
+Put the engine description above into a file called \texttt{mortal.yml} and run this command:
+\begin{lstlisting}[frame=none,numbers=none]
+    # giles -o mortal.sql mortal.yml
+\end{lstlisting}
+This will, assuming nothing goes wrong, give us a SQLite database schema in \texttt{mortal.sql}.
+
+Let's create a database by loading this schema into a (completely normal!) SQLite instance:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> .read mortal.sql
+\end{lstlisting}
+We now have a working production system.
+
+\subsection{Asserting and Viewing}
+Let's assert a new fact, asserting that Socrates is human:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> INSERT INTO Giles_IsHuman_Facts(Person)
+       ...> VALUES('Socrates');
+\end{lstlisting}
+Facts that are asserted like this (that is, directly by the user) are referred to as \emph{axioms} or \emph{axiomatic facts}.
+That is in contrast to facts that are asserted by the engine, which are \emph{derived facts}.
+
+Now that we've made this assertion, let's see if our rule worked and asserted that Socrates is mortal:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> SELECT * FROM Giles_IsMortal_Facts;
+    Person = Socrates
+    Id     = 1
+\end{lstlisting}
+Success!
+
+The \texttt{id} field stores a unique identifier that is automatically added to every fact.
+The \texttt{id} is guaranteed to be unique within a given fact class, and so a fact class plus an \texttt{id} is enough to uniquely identify any fact.
+
+\subsection{Justifying}
+Now that we've inferred that Socrates is mortal, we can ask the engine to \emph{justify} its knowledge:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> SELECT Justification
+       ...> FROM Giles_IsMortal_Justification
+       ...> WHERE Id = 1;
+    Justification =
+        Fact 'IsMortal #1' was produced
+        by rule 'AllHumansAreMortal':
+
+        All humans are mortal.
+
+        Justification:
+            * The named person is human. (IsHuman #1)
+\end{lstlisting}
+
+The engine has justified how it knows that Socrates is mortal --- namely, via the rule \texttt{AllHumansAreMortal} and because he \texttt{IsHuman}.
+This justification could be applied recursively, all the way back to the axioms that originally lead to this conclusion.
+
+\subsection{Retracting}
+We can now retract our initial assertion that Socrates is human:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> DELETE FROM Giles_IsHuman_Facts
+       ...> WHERE Person = 'Socrates';
+\end{lstlisting}
+With its support gone, the inference that Socrates is mortal is now gone too:
+\begin{lstlisting}[frame=none,numbers=none]
+    sqlite> SELECT COUNT(*) FROM Giles_IsMortal_Facts;
+    COUNT(*) = 0
+\end{lstlisting}
+
+\subsection{The Fundamental Giles Guarantee}
+\label{giles-guarantee}
+Why did the inference that Socrates is mortal vanish?
+Because of the fundamental guarantee of all Giles engines:
+\begin{center}
+  \begin{itemize}
+      \item All facts that can be derived from the current set of axioms in working memory are derived.
+      \item No facts that cannot be derived from the current set of axioms in working memory are derived.
+  \end{itemize}
+\end{center}
+
+That is to say, when the user inserts axioms into working memory, or retracts them from working memory, the engine guarantees that all of working memory is updated (atomically!) to reflect the set of derivable facts based on those axioms.
+
+That's why, when we retracted our assertion that Socrates is human, the engine no longer provided the fact asserting he was mortal.
+
+This guarantee is always true, and extends no matter how far cause is from effect.
+Even if $6.02 \times 10^{23}$ rules had to fire to make the inference, the engine will remove the fact if it can no longer be supported by the set of axioms in the working memory.
+
+This guarantee has some useful consequences.
+Users can ``experiment'' with adding and removing facts safe in the knowledge that nothing will be lost that can't be restored, and no unreliable data can be produced.
+For example, users could create an expert system that knows about network design, and experiment with different network layouts by simply adding and removing facts, to see what the expert system thought about the network design.
+
+\section{Fact Classes}
+As was stated earlier, all facts are instances of exactly one fact class.
+Engines must define at least one class of facts.
+
+Fact classes simply specify a name and the names and types of the class's fields.
+A class must have at least one field.
+
+Fact classes are defined in the \texttt{Facts} section of an engine.
+For example:
+\begin{lstlisting}
+Facts:
+    Person:
+        FirstName:  STRING
+        Age:        INTEGER
+    Car:
+        Year:       INTEGER
+        Make:       STRING
+\end{lstlisting}
+
+\subsection{Field Types}
+Every field is of some type.
+Four types are defined:
+\begin{description}
+    \item[BOOLEAN]  Either \texttt{TRUE} or \texttt{FALSE}.
+    \item[INTEGER]  An integer of some width.
+    \item[REAL]     A floating point number of some precision.
+    \item[STRING]   A string of characters in some encoding.
+\end{description}
+
+The widths, precisions, and encodings of these types are intentionally vague, because they depend on the target database.
+In general, integers are at least 32 bits wide, but might be 64 bits wide or even of infinite width.
+Real numbers are usually IEEE double-precision floating point numbers, but might be single precision.
+
+String encoding is the biggest variable, though.
+Some systems use ASCII, some use EBCDIC, some support UTF-8, some don't.
+
+Consult your database's documentation to get exact limits and semantics for these types.
+
+\subsubsection{Type Checking}
+Giles performs full and strict type checking on engines during compilation.
+Type transfer functions are available to cast values of one type to another.
+
+The following functions are available:
+\begin{description}
+    \item[string\_of\_bool]   Cast a boolean to a string value.
+    \item[string\_of\_int]    Cast an integer to a string value.
+    \item[string\_of\_real]   Cast a real to a string value.
+    \item[int\_of\_real]      Cast a real to an integer value.
+    \item[int\_of\_string]    Cast a string to an integer value.
+    \item[real\_of\_int]      Cast a integer value to a real value.
+\end{description}
+
+The exact semantics of these functions varies depending on the targeted database system.
+There is a general guarantee, however: none of these functions will ever result in a \texttt{NULL} value or abort the current transaction.
+Failed conversion is always signaled via some database-specific canary value.
+
+One important note about the strict type checking is that there is no silent promotion of types.
+It is not possible, for example, to freely mix \texttt{REAL} and \texttt{INTEGER} values in arithmetic expressions; explicit type transfers must be performed.
+
+\subsection{!output Facts}
+Giles performs a special optimization called $\alpha$-pruning.
+This optimization essentially ignores facts that can be cheaply proven to never match any predicate defined in the engine.
+``Ignored'' in this case means ``completely ignored'', in that inserting such a fact into a table has no effect --- not even inserting a row into the table.
+
+This is an important optimization, because it means that facts that can never have an impact on the engine take up no storage space.
+It does however, come with a price: the user might be interested in some facts even if the engine never is (say, ``alerts'' or something).
+Giles allows fact classes to be spared from $\alpha$-pruning by marking the class as \texttt{!output}.
+
+For example:
+\begin{lstlisting}
+Facts:
+    AnOutputFact: !output
+        Message: STRING
+\end{lstlisting}
+
+Giles automatically marks fact classes that only appear in actions as \texttt{!output}.
+That is, if a fact class never appears in a predicate, it is always an \texttt{!output} class.
+This automatic marking handles the vast majority of cases where we have seen facts marked as \texttt{!output} in practice.
+
+\section{Rules}
+Every rule consists of exactly one predicate and exactly one action.
+
+Because Giles's expression language is used extensively throughout the various parts of rules, it might be useful to make a small diversion now to discuss the expression language in more detail.
+
+\subsection{Expressions and the Basic Operators}
+Remember that Giles's input language is just YAML.
+The compiler makes good use of YAML's native type scheme, meaning literal numbers and strings and such can be written ``naturally'' and things will generally work out fine.
+However, this can only express static values, and there are situations where we need dynamic (that is, calculated at runtime) values.
+
+Enter the \texttt{!expr} tag.
+A string tagged with \texttt{!expr} is passed to Giles's expression parser instead of being treated as a normal string.
+
+Giles's expression parser is pretty straightforward: it uses normal infix notation, with more-or-less normal precedence, and with parentheses to change precedence as needed.
+Functions can be invoked in the ``standard'' name-and-parenthesized-argument-list notation.
+
+Here are some sample Giles expressions:
+\begin{lstlisting}[frame=none,numbers=none]
+    !expr 1 + 1
+    !expr strlen("hello, world!")
+    !expr (Locals.Foo + 7) >= 30 &&
+        strlen(This.Name) <= 39
+\end{lstlisting}
+
+The basic binary operators are listed here, in order of precedence:
+\begin{center}
+    \begin{tabular}{c | c | c | l}
+        \hline
+        Operator & Input Type & Result Type & Description \\ \hline \hline
+        \texttt{*}  & \emph{numeric} & \emph{numeric} & Multiplication \\ \hline
+        \texttt{/}  & \emph{numeric} & \emph{numeric} & Division \\ \hline
+        \texttt{\%} & \texttt{INTEGER} & \texttt{INTEGER} & Remainder \\ \hline
+        \texttt{+}  & \emph{numeric} & \emph{numeric} & Addition \\ \hline
+        \texttt{-}  & \emph{numeric} & \emph{numeric} & Subtraction \\ \hline
+        \texttt{.}  & \texttt{STRING} & \texttt{STRING} & Concatenation \\ \hline
+        \texttt{==} & \emph{any} & \texttt{BOOLEAN} & Equality \\ \hline
+        \texttt{!=} & \emph{any} & \texttt{BOOLEAN} & Not Equal \\ \hline
+        \texttt{<} & \emph{numeric} & \texttt{BOOLEAN} & Less Than \\ \hline
+        \texttt{>} & \emph{numeric} & \texttt{BOOLEAN} & Greater Than \\ \hline
+        \texttt{<=} & \emph{numeric} & \texttt{BOOLEAN} & Less Than or Equal \\ \hline
+        \texttt{>=} & \emph{numeric} & \texttt{BOOLEAN} & Greater Than or Equal \\ \hline
+        \texttt{\~} & \texttt{STRING} & \texttt{BOOLEAN} & Regex Match (see~\ref{regexp})\\ \hline
+        \texttt{\&\&} & \texttt{BOOLEAN} & \texttt{BOOLEAN} & Conjunction \\ \hline
+        \texttt{||} & \texttt{BOOLEAN} & \texttt{BOOLEAN} & Disjunction \\ \hline
+        \texttt{AND} & \texttt{BOOLEAN} & \texttt{BOOLEAN} & Predicate Join (see~\ref{predicates}) \\ \hline
+    \end{tabular}
+\end{center}
+
+There are also two unary operators:
+
+\begin{center}
+    \begin{tabular}{c | c | c | l}
+        \hline
+        Operator & Input Type & Result Type & Description \\ \hline \hline
+        \texttt{-} & \emph{numeric} & \emph{numeric} & Arithmetic Negation \\ \hline
+        \texttt{NOT} & \texttt{BOOLEAN} & \texttt{BOOLEAN} & Logical Negation \\ \hline
+    \end{tabular}
+\end{center}
+    
+Unary operators have precedence over all binary operators.
+
+\subsubsection{YAML Quirks}
+Sometimes expressions need to be parenthesized in a certain way to work around YAML parsing syntax.
+For example, this expression is not valid YAML:
+\begin{lstlisting}[frame=none,numbers=none]
+    !expr "Hello, " . "World!"
+\end{lstlisting}
+because it starts with a double quote, and the YAML parser therefore only parses the string up to the next double quote.
+
+To get around this, parentheses may be used.
+The above expression could be safely rewritten like this:
+\begin{lstlisting}[frame=none,numbers=none]
+    !expr ( "Hello, " . "World!")
+\end{lstlisting}
+Note the extra space after the first parenthesis, which is required to ensure the YAML parser doesn't treat the expression as a simple string.
+
+\subsubsection{Constants, Field References, and Local Variables}
+There are three namespaces that are visible in expressions.
+All variable (and named constant) references are qualified with their namespace.
+
+Named constants are placed in the \texttt{Constants} namespace.
+Constants are defined in the \texttt{Constants} section of the engine.
+For example:
+\begin{lstlisting}
+Constants:
+    Pi: 3.14
+    TheAnswer: 42
+\end{lstlisting}
+These constants could be referred to as \texttt{Constants.Pi} and \texttt{Constants.TheAnswer} in expressions.
+The type of a constant is automatically inferred from its declaration.
+
+Field references are valid only in expressions in sub-clauses of predicate clauses.
+The fields of the fact matched by that sub-clause are placed into the \texttt{This} namespace.
+For example:
+\begin{lstlisting}
+    MatchAll:
+        - Fact:    Person
+          Meaning: A person named Douglas who is
+                   at least 42 exists.
+          When:    !expr This.FirstName == "Douglas" AND
+                         This.Age >= 42
+\end{lstlisting}
+Field references can be used inside assignments as well, to extract values from facts and into local variables.
+
+Local variables are created by assignments in \texttt{MatchAll} predicate clauses.
+The engine automatically creates on ``instance'' of a rule per matching set of facts in working memory and each instance has its own set of local variables.
+Local variables are placed in the \texttt{Locals} namespace.
+For example:
+\begin{lstlisting}
+    MatchAll:
+        - Fact:    Person
+          Meaning: A person exists.
+          Assign:
+            FirstName:  !expr This.FirstName
+
+        - Fact:    Dog
+          Meaning: A dog exists owned by that person.
+          When:    !expr This.Owner == Locals.FirstName
+\end{lstlisting}
+
+Local variables are the mechanism by which multiple facts can be related to one another.
+The assignment of a local variable can use an arbitarily complex value (that is, the assignment is an expression).
+
+Note that, for technical reasons, the assignment of a local variable must occur textually prior to its first use.
+This affects how sub-clauses are ordered, but should not in any way be taken to mean that the matched facts must be asserted in some order; predicates are always order-insensitive.
+
+\subsubsection{Regular Expressions}
+\label{regexp}
+Note that the \texttt{\~} operator allows regular expressions to be used in engines.
+However, regular expressions are not supported by all targeted database backends, and on others may require special configuration\footnote{This is the case in SQLite.}.
+
+To make sure the user is prepared to configure the target database appropriately, the compiler will fail to compile an engine using regular expressions unless the compiler is invoked with the \texttt{-r} flag.
+
+\subsection{Predicates}
+\label{predicates}
+Every rule has a predicate that specifies a pattern of fact(s) to match.
+Every predicate has at least a \texttt{MatchAll} clause, and, optionally \texttt{MatchNone} and \texttt{When} clauses.
+All of the clauses specified in a predicate must be true for the predicate to be true and the rule to fire.
+
+Predicates are always order-insensitive: the facts matched by a predicate can be asserted in any order.
+Also, the same fact can match multiple different clauses in a predicate at once.
+Finally, the engine will find \emph{all} sets of facts that match a predicate and fire the rule once for each set.
+
+\subsubsection{MatchAll}
+The \texttt{MatchAll} clause specifies a set of sub-clauses, each matching a single fact.
+\emph{All} sub-clauses of a \texttt{MatchAll} clause must be true for the clause itself to match.
+
+A \texttt{MatchAll} clause looks like this:
+\begin{lstlisting}
+MatchAll:
+    - Fact:    Person
+      Meaning: A person named Socrates exists.
+      When:    !expr This.FirstName == "Socrates"
+      Assign:
+        FirstName: !expr This.FirstName
+
+    - Fact:    Citizenship
+      Meaning: That person is Athenian.
+      When:    !expr This.FirstName == Locals.FirstName AND
+                     This.Polis == "Athens"
+\end{lstlisting}
+
+Each sub-clause begins with a hyphen.
+This is a YAML-ism to indicate that the clauses are a list.
+
+Each sub-clause identifies a fact class, and provides a human-readable meaning to be used during justification.
+Each sub-clause may also optionally have a complex predicate (the \texttt{When}) portion, and a set of assignments.
+
+If a sub-clause has a complex predicate, it must be a list of \emph{field refernece}-\emph{comparator}-\emph{value} triples conjoined with the special \texttt{AND} operator.
+The \texttt{AND} operator acts like a normal boolean conjunction, but combines tests of field values together into a complex predicate.
+
+If a sub-clause does not have a complex predicate, then the clause will match \emph{any} fact of the appropriate class in working memory (that is, there is a default ``true'' predicate).
+
+\subsubsection{MatchNone}
+The \texttt{MatchNone} clause specifies a set of sub-clauses, each matching a single fact.
+If \emph{none} of the sub-clauses of a \texttt{MatchNone} clause match, then the clause itself matches.
+
+Each sub-clause of a \texttt{MatchNone} clause is of the same form as the \texttt{MatchAll} sub-clauses, except that assignments are not allowed.
+
+\subsubsection{Final When}
+A rule may have a final predicate, known as a \texttt{When} predicate.
+It is simply a single expression of \texttt{BOOLEAN} type that must be true for the rule to fire.
+For example:
+\begin{lstlisting}
+When: !expr Locals.Foo == TRUE AND Locals.Bar == 39
+\end{lstlisting}
+
+\subsection{Actions}
+Every rule has exactly one action.
+Two types of actions are possible: \texttt{Assert} (add a new fact to working memory) and \texttt{Suppress} (remove some facts from working memory).
+Each of these actions modifies working memory in some way, which can cause more rules' predicates to match, causing those rules to fire, and so on.
+
+\subsubsection{Assert Actions}
+The \texttt{Assert} action asserts a new fact into working memory.
+The action simply takes the name of a fact class and a dictionary specifying the new fact's fields' values.
+For example:
+\begin{lstlisting}
+Assert:
+    Car:
+        Make:  Yoyodyne
+        Model: Tristero
+        Year:  !expr Locals.Year
+\end{lstlisting}
+
+\subsubsection{Suppress}
+The \texttt{Supress} action retracts facts from working memory.
+It simply takes the name of a fact class and a predicate and retracts all facts that match.
+
+For example:
+\begin{lstlisting}
+Suppress:
+    Fact: Car
+    When: !expr This.Make == 'Yoyodyne'
+\end{lstlisting}
+
+Note that the Giles Guarantee (see~\ref{giles-guarantee}) still holds in light of \texttt{Suppress} actions.
+For example, say rule \texttt{R} matches fact \texttt{F} and fires, and as its action suppresses fact \texttt{F2}.
+If fact \texttt{F} is later suppressed by a rule or retracted by the user, fact \texttt{F2} will be restored.
+This ensures that all derivable facts are derived.
+
+However, if the user manually deletes some axioms, things are really and truly gone.
+The engine guarantees that all facts derivable from a set of axioms are derived, but deleting an axiom changes that set, and thus changes the set of derivable facts.
+
+\section{Parameters}
+Parameters are a special kind of fact class, declared in a special \texttt{Parameters} section of an engine.
+These parameters can have limits placed on their values and can be guaranteed to be singletons, or multiply-valued and indexable by a string, and have default values.
+While they are just normal facts under the hood, they can provide a useful ``tuning'' interface.
+
+Some example parameters:
+\begin{lstlisting}
+Parameters:
+    ABooleanParameter:
+        Default: FALSE
+
+    AnIntegerParameter:
+        Default: 100
+        Lower:   0
+        Upper:   100
+
+    ARealParameter:
+        Default:  1.0
+        Lower:    0.0
+        Upper:    1.0
+
+    AStringParameter:
+        Default:  "Hello, world!"
+
+    ADictionaryParameter:
+        Dictionary: TRUE
+        Default:    FALSE
+\end{lstlisting}
+
+The engine provides a special interface to the parameters by way of a \texttt{Parameters} table.
+Modifying a parameter's value will fail if an invalid parameter name is specified, or if the provided value falls outside of the specified limits.
+
+Parameters create fact classes of the same name with a single field of the appropriate type named \texttt{Value}.
+Dictionary parameters have an additional field of type \texttt{STRING} named \texttt{Key}.
+Parameters are matched in predicates just like any other fact.
+
+\section{Recursive Rules}
+The matching process in an engine is inherently recursive: when a rule's action modifies working memory, more rules may fire as a result.
+However, as long as there are no cycles among those rules (that is, none of those rules asserts or suppresses facts that are matched by another of those rules), the processing is sure to terminate.
+
+Problems arise when cycles like these exist in a rule set.
+Computation might go on forever in a recursive loop or the database could raise an exception when stack space is exhausted.
+
+Giles supports rules with these sorts of cycles\footnote{Assuming the underlying database engine supports recursive triggers; not all do, and some require special configuration.}, with the caveat that undefined behavior can result if recursion is not terminated or continues on long enough to exhaust some finite resource provided by the hosting database.
+
+To write these sorts of rule sets, Giles allows an \texttt{Assert} action to be decorated with a \texttt{!distinct} tag.
+This tag means that a new fact will be asserted if and only if an identical fact does not already exist.
+If such a fact already exists, the rule's action will not fire.
+This can be used to break recursive loops.
+
+Note that for the purposes of the \texttt{!distinct} tag, ``identical'' means ``of the same fact class and with identical values for all its fields''.
+
+Note that the Giles Guarantee~(\ref{giles-guarantee}) still applies in this case.
+If a fact that is produced distinctly is suppressed, the engine will check to see if any of the other rules that produce that fact could fire; if so, they do.
+Thus a suppressed fact is only suppressed if there are no rules that could produce the fact that are capable of firing.
+
+Because an engine with cycles in its rule sets can have undefined behavior, the compiler will not compile such sets unless it is invoked with the \texttt{-c} flag, which indicates that the user is aware of the cycles and their potential consequences.
+
+It is not possible to suppress a fact belonging to a class that appears in any \texttt{!distinct} assertion, because it could cause the engine to enter an infinite loop.
+Additionally, not all database backends will support these sorts of rule sets, and others may require special configuration.
+
+\section{The Foreign Function Interface}
+Any single-valued function provided by the host database can be used in an expression by declaring it via the foreign function interface.
+This declaration must state the number and types of arguments, the name of the function in the database, the name will function will be known as in Giles, and the return type.
+
+For example, the SQLite \texttt{SUBSTR} function has a declaration similar to this:
+
+\begin{lstlisting}
+    Functions:
+        Substr:
+            External:   SUBSTR
+            Parameters: [STRING, INTEGER, INTEGER]
+            Returns:    STRING
+\end{lstlisting}
+
+This declares the Giles function \texttt{Substr} is implemented by the SQLite function \texttt{SUBSTR}.
+It takes three parameters: a \texttt{STRING} and two \texttt{INTEGER}s.
+It returns a value of type \texttt{STRING}.
+
+With this declaration, the \texttt{Substr} function can be used in any Giles expression transparently.
+
+Note that foreign functions must return a single value of the appropriate type, and must never return \texttt{NULL} (doing so results in undefined behavior).
+
+\section{Multi-File Engines}
+An engine definition can be split across multiple YAML files.
+Each file can have any combination of the top-level sections (for example, \texttt{Facts} or \texttt{Parameters}).
+All of these top-level sections will be merged together during compilation.
+
+This is a useful structuring technique as engines grow larger.
+
+\section{Database-Specific Notes}
+This section outlines the some notes and caveats specific to different database backends supported by the compiler.
+
+\subsection{SQLite}
+\begin{itemize}
+    \item SQLite version 3.7.16.1 or greater is required.
+    \item Recursive triggers must be enabled.
+    \item Foreign key support must be enabled.
+    \item By default, SQLite does not support regular expressions.
+          If regular expressions are used in rules, the user must provide regular expression implementation that is compatible with the Perl Compatible Regular Expression (PCRE) library.
+    \item SQLite has a default limit of 1000 recursive trigger invocations.
+          An engine without cycles in its ruleset would be very unlikely to ever run into this limit, but with cycles this limit could be reached very quickly.
+          Exceeding this limit results in a runtime error.
+\end{itemize}
+
+\end{document}

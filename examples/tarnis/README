@@ -1,0 +1,57 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  This example illustrates an expert system called Tarnis.  Tarnis is an
+  expert in secure network design: networks can be described by facts naming
+  the networks and their security levels.  Other facts describe uni- and
+  bidirectional connections between various networks.  Tarnis ensures that
+  there are no reverse data flows, where data can flow from a more-secure
+  to a less secure network by any path.
+
+  Tarnis provides an interesting use case for a Giles engine.  Because Giles
+  guarantees that all derivable facts are derived and because the engine
+  reacts dynamically, users can experiment with different network topologies
+  by adding and removing facts and see the results of those experiments.
+
+COMPILING THE ENGINE
+
+  After installing Giles, this engine can be compiled using the following
+  command:
+
+    $ giles -o tarnis.sql -r -c -p tarnis tarnis.yml
+
+  The '-r' flag enables regular expression support in the compiler.  The '-c'
+  flag allows the signature set to contain cycles.
+
+  Finally, the '-p' flag prefixes all of the generated database structures
+  with 'tarnis'.  This is not strictly necessary, but the example provided
+  in example-network.sql assumes that this prefix has been used.
+
+LOADING THE ENGINE
+
+  The engine can be loaded into a SQLite instance with the following commands:
+
+    $ sqlite3
+    sqlite> PRAGMA recursive_triggers = ON; /* If necessary. */
+    sqlite> PRAGMA foreign_keys = ON; /* If necessary. */
+    sqlite> .read tarnis.sql
+
+  Note that SQLite must have regular expression support enabled prior
+  to loading the compiled SQL; see SQLite's documentation for more
+  information.
+
+USING THE ENGINE
+
+  This is a fairly complex example.  An additional file, example-network.sql,
+  is provided that declares some networks and connections between them.
+  See the comments in that file for more information.
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+

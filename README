@@ -1,0 +1,36 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  Giles is a compiler for production systems.  Production systems
+  are useful computational systems for such domains as event
+  correlation engines, expert systems, and action-selection
+  mechanisms.  Giles is unique in that it turns a normal relational
+  database into a production system without any additional software
+  required at runtime.  Given a description of a production system
+  in a domain specific language, Giles will produce a schema for a
+  relational database management system.  That schema will create
+  a database that is completely self-contained and implements the
+  described production system efficiently and simply.  This makes
+  production systems accessible to far more programmers in far more
+  situations by allowing programmers to use preexisting database
+  engines and libraries.
+
+  The Giles Project is hosted at:
+
+    https://git.korelogic.com/giles.git/
+
+DOCUMENTATION
+
+  General documentation is located in the docs directory.  See the
+  README.INSTALL file for instructions on how to build, test, and
+  install the framework.
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+

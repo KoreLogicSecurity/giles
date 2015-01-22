@@ -1,0 +1,46 @@
+######################################################################
+#
+# $Id$
+#
+######################################################################
+#
+# Copyright 2011-2014 KoreLogic, Inc. All Rights Reserved.
+#
+# This software, having been partly or wholly developed and/or
+# sponsored by KoreLogic, Inc., is hereby released under the terms
+# and conditions set forth in the project's "README.LICENSE" file.
+# For a list of all contributors and sponsors, please refer to the
+# project's "README.CREDITS" file.
+#
+######################################################################
+#
+# Purpose: An example production system.
+#
+######################################################################
+
+Facts:
+    IsAncestor:
+        Descendant: STRING
+        Ancestor:   STRING
+
+Rules:
+    AIsAncestorOfB:
+        Description: A is an ancestor of B.
+
+        MatchAll:
+            - Fact:    IsAncestor
+              Meaning: An ancestor relationship exists.
+              Assign:
+                Descendant: !expr This.Descendant
+                Ancestor:   !expr This.Ancestor
+
+            - Fact:    IsAncestor
+              Meaning: That ancestor has an ancestor.
+              When:    !expr This.Descendant == Locals.Ancestor
+              Assign:
+                Grandparent: !expr This.Ancestor
+
+        Assert: !distinct
+            IsAncestor:
+                Descendant: !expr Locals.Descendant
+                Ancestor:   !expr Locals.Grandparent

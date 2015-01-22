@@ -1,0 +1,82 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  This example illustrates a simple production system that infers that an
+  animal living in the same domicile as a human is a pet of that human.
+
+COMPILING THE ENGINE
+
+  After installing Giles, this engine can be compiled using the following
+  command:
+
+    $ giles -o pets.sql pets.yml
+
+LOADING THE ENGINE
+
+  The engine can be loaded into a SQLite instance with the following commands:
+
+    $ sqlite3
+    sqlite> PRAGMA recursive_triggers = ON; /* If necessary. */
+    sqlite> PRAGMA foreign_keys = ON; /* If necessary. */
+    sqlite> .read pets.sql
+
+USING THE ENGINE
+
+  This engine describes four classes of facts.
+
+  Each known person has a fact asserting his or her existence (the Age field
+  is not used in this engine, but appears as an illustrative example to show
+  that not all fields need to be used in a rule):
+
+    INSERT INTO Giles_PersonExists_Facts(Name, Age) VALUES('Rob', 34);
+    INSERT INTO Giles_PersonExists_Facts(Name, Age) VALUES('Joel', 30);
+
+  Each animal likewise has a fact asserting his or her existence (the Age
+  field is again not used):
+
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('Caboose', 6);
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('Donut', 11);
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('Vanna', 12);
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('Leo', 7);
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('June', 2);
+    INSERT INTO Giles_AnimalExists_Facts(Name, Age) VALUES('Franny', 8);
+
+  Each person or animal can be declared to live in some particular domicile:
+
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Rob', 'Chez Rob');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Joel', 'Casa del Joel');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Caboose', 'Chez Rob');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Donut', 'Chez Rob');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Vanna', 'Chez Rob');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('June', 'Casa del Joel');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Leo', 'Casa del Joel');
+    INSERT INTO Giles_Inhabits_Facts(Name, Domicile) VALUES('Franny', 'Casa del Joel');
+
+  These statements are also available in the input.sql file that can be read
+  directly by sqlite.
+
+  The engine will automatically produce IsAPet facts for the animals that
+  live with people:
+
+    SELECT Person, Pet FROM Giles_IsAPet_Facts;
+    Person      Pet       
+    ----------  ----------
+    Rob         Caboose   
+    Rob         Donut     
+    Rob         Vanna     
+    Joel        June      
+    Joel        Leo       
+    Joel        Franny    
+
+  This statement is also available in the output.sql file that can be read
+  directly by sqlite.
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+

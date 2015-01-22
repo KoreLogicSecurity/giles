@@ -1,0 +1,61 @@
+.Dd $Mdocdate$
+.Dt GILES 1
+.Sh NAME
+.Nm giles
+.Nd compile production systems
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Op Fl v
+.Op Fl b Ar BACKEND
+.Op Fl c
+.Op Fl r
+.Op Fl p Ar PREFIX
+.Op Fl o Ar OUTPUT
+.Ar FILE
+.Op "FILE ..."
+.Sh DESCRIPTION
+The
+.Nm
+tool compiles a production system, producing an output SQL schema given a description in a YAML file.
+
+The following options are supported:
+.Bl -tag
+.It Fl h
+Display a usage message and exit.
+Included in this help message is a list of supported database targets.
+.It Fl v
+Display the version of the compiler and exit.
+.It Fl c
+Allow the engine to have match-assert cycles.
+.It Fl r
+Allow the engine to use regular expressions.
+.It Fl b Ar BACKEND
+Specify that the compiler should generate code using
+.Ar BACKEND "."
+.It Fl p Ar PREFIX
+Specify that the compiler should prefix all generated database objects with
+.Ar PREFIX "."
+By default this is
+.Dq "Giles" "."
+.It Fl o Ar OUTPUT
+Direct output to the named file.
+By default this is
+.Pa stdout "."
+.El
+.Pp
+Note that enabling regular expression or cycle support might mean enabling non-default features on the target database, and may not be supported at all in some systems.
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Rs
+.%A Rob King
+.%A Derek Brown
+.%B The Giles Production System Compiler User Manual
+.Re
+.Sh HISTORY
+.Nm
+first appeared publicly in 2014.
+.Sh AUTHORS
+.Nm
+was developed by the KoreLogic Development Team.

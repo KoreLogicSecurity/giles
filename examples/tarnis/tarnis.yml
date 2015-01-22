@@ -1,0 +1,392 @@
+######################################################################
+#
+# $Id$
+#
+######################################################################
+#
+# Copyright 2011-2014 KoreLogic, Inc. All Rights Reserved.
+#
+# This software, having been partly or wholly developed and/or
+# sponsored by KoreLogic, Inc., is hereby released under the terms
+# and conditions set forth in the project's "README.LICENSE" file.
+# For a list of all contributors and sponsors, please refer to the
+# project's "README.CREDITS" file.
+#
+######################################################################
+#
+# Purpose: Tarnis is an example expert system.
+#
+######################################################################
+
+Description: >
+  This describes an expert system that knows about problems with
+  network topologies. It can detect if traffic can flow from a
+  more-secure to a less-secure network via any path, and can
+  detect orphaned networks that are not connected to any other
+  network.
+
+Parameters:
+  InferNetworkExistence: # If true, infer that networks exist if they are mentioned in a connection description, even if they're not explicitly declared.
+    Default: TRUE
+
+  DefaultSecurityLevel:  # Provides the default security level for an inferred network.
+    Default:   0
+    Lower:     0
+    Upper:   100
+
+  SuppressAlertPatterns: # Suppress alerts whose Message fields match any of these patterns.
+    Dictionary: TRUE
+    Default: ''
+
+Functions:
+  Strlen:
+    External:   LENGTH
+    Parameters: [STRING]
+    Returns:    INTEGER
+
+Facts:
+  NetworkExists:                   # Input Fact - Declares that a given network exists with a given security level.
+    NetworkName:   STRING
+    SecurityLevel: INTEGER
+
+  NetworkInferred:                 # Internal Fact - Declares that a given network exists by inference.
+    NetworkName:   STRING
+    SecurityLevel: INTEGER
+
+  NetworkDeclaration:              # Internal Fact - Describes a network found via declaration or inference.
+    NetworkName:   STRING
+    SecurityLevel: INTEGER
+
+  BidirectionalNetworkConnection:  # Input Fact - Declares that two networks are directly connected with data flowing between them.
+    NetworkA: STRING
+    NetworkB: STRING
+
+  UnidirectionalNetworkConnection: # Input Fact - Declares that two networks are directly connected with data flowing only from A to B.
+    NetworkA: STRING
+    NetworkB: STRING
+
+  AllowException:                  # Input Fact - Declares that information is allowed to flow from a more-secure to a less-secure network.
+    NetworkA: STRING
+    NetworkB: STRING
+
+  AuditedConnection:               # Internal Fact - Used to track both kinds of connection.
+    NetworkA: STRING
+    NetworkB: STRING
+
+  DataFlow:                        # Internal Fact - Used to track data flows.
+    NetworkA: STRING
+    NetworkB: STRING
+
+  Alert:                           # Output Fact - Used to let the user know something is up.
+    Message: STRING
+
+Rules:
+  AddExplicitNetworkDeclaration:
+    Description: A network exists because a user declared it to exist.
+
+    MatchAll:
+      - Fact:   NetworkExists
+        Meaning: A user has declared a network to exist.
+        Assign:
+          NetworkName:   !expr This.NetworkName
+          SecurityLevel: !expr This.SecurityLevel
+
+    Assert:
+      NetworkDeclaration:
+        NetworkName:   !expr Locals.NetworkName
+        SecurityLevel: !expr Locals.SecurityLevel
+
+  AddInferredNetworkDeclaration:
+    Description: A network exists because its existence was inferred.
+
+    MatchAll:
+      - Fact:   NetworkInferred
+        Meaning: A network was inferred to exist.
+        Assign:
+          NetworkName:   !expr This.NetworkName
+          SecurityLevel: !expr This.SecurityLevel
+
+    Assert:
+      NetworkDeclaration:
+        NetworkName:   !expr Locals.NetworkName
+        SecurityLevel: !expr Locals.SecurityLevel
+
+  AuditBidirectionalNetworkConnection:
+    Description: A bidirectional network connection exists and should be examined.
+
+    MatchAll:
+      - Fact:   BidirectionalNetworkConnection
+        Meaning: A connection between two networks has been declared.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    Assert:
+      AuditedConnection:
+        NetworkA: !expr Locals.NetworkA
+        NetworkB: !expr Locals.NetworkB
+
+  AuditUnidirectionalNetworkConnection:
+    Description: A unidirectional network connection exists and should be examined.
+
+    MatchAll:
+      - Fact:   UnidirectionalNetworkConnection
+        Meaning: A connection between two networks has been declared.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    Assert:
+      AuditedConnection:
+        NetworkA: !expr Locals.NetworkA
+        NetworkB: !expr Locals.NetworkB
+
+  InferNetworkExistsA:
+    Description: The existence of a network was inferred from its mention in a connection declaration.
+
+    MatchAll:
+      - Fact:   InferNetworkExistence
+        Meaning: The system is configured to infer network existence.
+        When:    !expr This.Value == TRUE
+
+      - Fact:   DefaultSecurityLevel
+        Meaning: The system is configured to provide a default security level for an inferred network.
+        Assign:
+          DefaultSecurityLevel: !expr This.Value
+
+      - Fact:   AuditedConnection
+        Meaning: A connection exists between two networks.
+        Assign:
+          NetworkA: !expr This.NetworkA
+
+    MatchNone:
+      - Fact:   NetworkExists
+        Meaning: The network was not separately declared to exist.
+        When:    !expr This.NetworkName == Locals.NetworkA
+
+    Assert: !distinct
+      NetworkInferred:
+        NetworkName:   !expr Locals.NetworkA
+        SecurityLevel: !expr Locals.DefaultSecurityLevel
+
+  InferNetworkExistsB:
+    Description: The existence of a network was inferred from its mention in a connection declaration.
+
+    MatchAll:
+      - Fact:   InferNetworkExistence
+        Meaning: The system is configured to infer network existence.
+        When:    !expr This.Value == TRUE
+
+      - Fact:   DefaultSecurityLevel
+        Meaning: The system is configured to provide a default security level for an inferred network.
+        Assign:
+          DefaultSecurityLevel: !expr This.Value
+
+      - Fact:   AuditedConnection
+        Meaning: A connection exists between two networks.
+        Assign:
+          NetworkB: !expr This.NetworkB
+
+    MatchNone:
+      - Fact:   NetworkExists
+        Meaning: The network was not separately declared to exist on the left-hand side of a connection.
+        When:    !expr This.NetworkName == Locals.NetworkB
+
+    Assert: !distinct
+      NetworkInferred:
+        NetworkName:   !expr Locals.NetworkB
+        SecurityLevel: !expr Locals.DefaultSecurityLevel
+
+  UnknownNetworkConnectionA:
+    Description: A network connection exists that connects to a network that does not exist.
+
+    MatchAll:
+      - Fact:   AuditedConnection
+        Meaning: A connection between two networks has been declared.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    MatchNone:
+      - Fact:   NetworkExists
+        Meaning: The left-hand network in that declaration has not been declared to exist.
+        When:    !expr This.NetworkName == Locals.NetworkA
+
+      - Fact:   NetworkInferred
+        Meaning: The left-hand network in that declaration has not been inferred to exist.
+        When:    !expr This.NetworkName == Locals.NetworkA
+
+    Assert:
+      Alert:
+        Message: !expr ( 'A connection exists for network "' . Locals.NetworkA . '" (' . Locals.NetworkA . ' -> ' . Locals.NetworkB . '), but that network does not exist.')
+
+  UnknownNetworkConnectionB:
+    Description: A network connection exists that connects to a network that does not exist.
+
+    MatchAll:
+      - Fact:   AuditedConnection
+        Meaning: A connection between two networks has been declared.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    MatchNone:
+      - Fact:   NetworkExists
+        Meaning: The right-hand network in that declaration has not been declared to exist.
+        When:    !expr This.NetworkName == Locals.NetworkB
+
+      - Fact:   NetworkInferred
+        Meaning: The right-hand network in that declaration has not been inferred to exist.
+        When:    !expr This.NetworkName == Locals.NetworkB
+
+    Assert:
+      Alert:
+        Message: !expr ( 'A connection exists for network "' . Locals.NetworkB . '" (' . Locals.NetworkA . ' -> ' . Locals.NetworkB . '), but that network does not exist.')
+
+  OrphanedNetwork:
+    Description: A network exists that connects to no other network.
+
+    MatchAll:
+      - Fact:   NetworkDeclaration
+        Meaning: A network has been declared to exist.
+        Assign:
+          NetworkName: !expr This.NetworkName
+
+    MatchNone:
+      - Fact:   AuditedConnection
+        Meaning: The declared network does not form the left-hand side of any connection.
+        When:    !expr This.NetworkA == Locals.NetworkName
+
+      - Fact:   AuditedConnection
+        Meaning: The declared network does not form the right-hand side of any connection.
+        When:    !expr This.NetworkB == Locals.NetworkName
+
+    Assert:
+      Alert:
+        Message: !expr ( 'Network "' . Locals.NetworkName . '" exists but is connected to no other network.')
+
+  LoopbackConnection:
+    Description: A network connection exists that connects a network to itself.
+
+    MatchAll:
+      - Fact:   AuditedConnection
+        Meaning: A connection from one network to the same network has been declared.
+        When:    !expr This.NetworkA == This.NetworkB
+        Assign:
+          NetworkName: !expr This.NetworkA
+
+    Assert:
+      Alert:
+        Message: !expr ( 'A connection exists that connects a network to itself (' . Locals.NetworkName . ' -> ' . Locals.NetworkName . ').')
+
+  AddUnidirectionalDataFlow:
+    Description: Data can flow between two networks in one direction.
+
+    MatchAll:
+      - Fact:   UnidirectionalNetworkConnection
+        Meaning: A connection exists between two networks, but only in one direction.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    Assert: !distinct
+      DataFlow:
+        NetworkA: !expr Locals.NetworkA
+        NetworkB: !expr Locals.NetworkB
+
+  AddBidirectionalDataFlowA:
+    Description: Data can flow between two networks in both directions.
+
+    MatchAll:
+      - Fact:   BidirectionalNetworkConnection
+        Meaning: A connection exists between two networks.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    Assert: !distinct
+      DataFlow:
+        NetworkA: !expr Locals.NetworkA
+        NetworkB: !expr Locals.NetworkB
+
+  AddBidirectionalDataFlowB:
+    Description: Data can flow between two networks in both directions.
+
+    MatchAll:
+      - Fact:   BidirectionalNetworkConnection
+        Meaning: A connection exists between two networks.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+    Assert: !distinct
+      DataFlow:
+        NetworkA: !expr Locals.NetworkB
+        NetworkB: !expr Locals.NetworkA
+
+  AddDistantDataFlow:
+    Description: Data can flow between two distantly-connected networks.
+
+    MatchAll:
+      - Fact:   DataFlow
+        Meaning: Network A exists and is connected to Network B.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+      - Fact:   DataFlow
+        Meaning: Network B is connected to another network that is not Network A.
+        When:    !expr This.NetworkA == Locals.NetworkB AND This.NetworkB != Locals.NetworkA
+        Assign:
+          DistantNetwork: !expr This.NetworkB
+
+    Assert: !distinct
+      DataFlow:
+        NetworkA: !expr Locals.NetworkA
+        NetworkB: !expr Locals.DistantNetwork
+
+  InsecureDataFlow:
+    Description: Data can flow from a more-secure network to a less-secure network.
+
+    MatchAll:
+      - Fact:   DataFlow
+        Meaning: Network A can send data to Network B.
+        Assign:
+          NetworkA: !expr This.NetworkA
+          NetworkB: !expr This.NetworkB
+
+      - Fact:   NetworkDeclaration
+        Meaning: Network A exists and has a higher security level than Network B.
+        When:    !expr This.NetworkName == Locals.NetworkA
+        Assign:
+          LevelA: !expr This.SecurityLevel
+
+      - Fact:   NetworkDeclaration
+        Meaning: Network B exists and has a lower security level than Network A.
+        When:    !expr This.NetworkName == Locals.NetworkB AND This.SecurityLevel < Locals.LevelA
+        Assign:
+          LevelB: !expr This.SecurityLevel
+
+    MatchNone:
+      - Fact:   AllowException
+        Meaning: This is not explicitly allowed via an exception.
+        When:    !expr This.NetworkA == Locals.NetworkA AND This.NetworkB == Locals.NetworkB
+
+    Assert:
+      Alert:
+        Message: !expr ( 'Data can flow from a more-secure network (' . Locals.NetworkA . ', level ' . string_of_int(Locals.LevelA) . ') ' .
+                         'to a less-secure network (' . Locals.NetworkB . ', level ' . string_of_int(Locals.LevelB) . ')')
+
+  SuppressAlerts:
+    Description: Suppress alerts that match the given pattern.
+
+    MatchAll:
+      - Fact:   SuppressAlertPatterns
+        Meaning: The system has been configured to supress alerts matching a certain pattern.
+        Assign:
+          Pattern: !expr This.Value
+          PatternLength: !expr String_Of_Int(strlen(This.Value))
+
+    Suppress:
+      Fact: Alert
+      When:  !expr This.Message ~ Locals.Pattern

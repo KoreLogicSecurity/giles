@@ -1,0 +1,8 @@
+include Makefile
+include README.*
+include doc/*.tex
+include doc/*.pdf
+include doc/*.1
+include tests/*.py
+recursive-include utils version*
+recursive-include examples *.yml *.sql README

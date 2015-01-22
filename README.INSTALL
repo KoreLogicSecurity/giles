@@ -1,0 +1,85 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  Giles is a compiler for production systems.  Production systems
+  are useful computational systems for such domains as event
+  correlation engines, expert systems, and action-selection
+  mechanisms.  Giles is unique in that it turns a normal relational
+  database into a production system without any additional software
+  required at runtime.  Given a description of a production system
+  in a domain specific language, Giles will produce a schema for a
+  relational database management system.  That schema will create
+  a database that is completely self-contained and implements the
+  described production system efficiently and simply.  This makes
+  production systems accessible to far more programmers in far more
+  situations by allowing programmers to use preexisting database
+  engines and libraries.
+
+  The Giles Project is hosted at:
+
+    https://www.korelogic.com
+
+TECHNICAL REQUIREMENTS
+
+  The following software must be installed for Giles to work properly:
+
+    - Python 3.4 or greater
+
+  The database schemas produced by Giles have specific requirements as well.
+
+  The Giles SQLite backend produces schemas that have the following requirements:
+
+    - SQLite 3.7.16.1 or greater
+      -- With foreign key support enabled
+      -- With trigger support enabled
+
+  Giles can compile production systems that use regular expressions
+  and/or recursive productions; to use these features, the target
+  SQLite database must provide an implementation of the REGEXP
+  operator and/or enable recursive triggers.
+
+  Other Giles backends have differing requirements; see the
+  backend-specific documentation.
+
+  Note that Giles can compile and produce schemas for database systems
+  that are not installed on the system; the database systems are only
+  required to run the created schemas, not to generate them.
+
+PREREQUISITES INSTALLATION
+
+  Building Giles requires the following software to be installed:
+
+    - Python 3.4 or greater (also required at runtime)
+
+  The installation mechanism uses the Setuptools system which will
+  automatically check for any needed dependencies.
+
+TESTING
+
+  Giles provides a simple test suite that can be invoked by:
+
+    $ make test
+
+INSTALLATION
+
+  The easiest way to install Giles is:
+
+    $ sudo make install
+
+  This will install the package into the default binary directory.
+  The Makefile supports the conventional "PREFIX" variable that
+  specifies the top-level installation directory (by default,
+  "/usr/local"). The Makefile also provides a "DESTDIR" variable
+  for its "install" target to support installation to alternate
+  roots.
+
+RUNNING GILES
+
+  Giles can be run using the 'giles' command. Invoking the 'giles'
+  command without arguments will produce a simple usage message.
+
+  For more information on invoking Giles, see giles(1).

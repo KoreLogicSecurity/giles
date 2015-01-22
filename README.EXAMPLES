@@ -1,0 +1,28 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  Giles ships with several examples in the examples directory.
+  Each example has its own README file with further details.
+
+SQLITE CONFIGURATION
+
+  The included examples all require SQLite 3.7.16.1 or greater, with foreign
+  key and recursive trigger support enabled.  In the SQLite command-line
+  application, these features can be enabled with the following pragmas:
+
+    PRAGMA recursive_triggers = ON;
+    PRAGMA foreign_keys = ON;
+
+  These statements can be placed in the ".sqliterc" initialization file
+  as well.  When accessing SQLite databases programmatically, refer to the
+  access library's documentation to determine how to enable these features.
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+

@@ -1,0 +1,69 @@
+######################################################################
+#
+# $Id$
+#
+######################################################################
+#
+# Copyright 2011-2014 KoreLogic, Inc. All Rights Reserved.
+#
+# This software, having been partly or wholly developed and/or
+# sponsored by KoreLogic, Inc., is hereby released under the terms
+# and conditions set forth in the project's "README.LICENSE" file.
+# For a list of all contributors and sponsors, please refer to the
+# project's "README.CREDITS" file.
+#
+######################################################################
+#
+# Purpose: An example production system.
+#
+######################################################################
+
+Description: Figure out who owns which pets.
+
+Facts:
+    PersonExists:
+        Name:   STRING
+        Age:    INTEGER
+
+    AnimalExists:
+        Name:   STRING
+        Age:    INTEGER
+
+    Inhabits:
+        Domicile:   STRING
+        Name:       STRING
+
+    IsAPet:
+        Person: STRING
+        Pet:    STRING
+
+Rules:
+    AIsPetOfB:
+        Description: A is the pet of B.
+
+        MatchAll:
+            - Fact:   AnimalExists
+              Meaning: An animal exists.
+              Assign:
+                PetName: !expr This.Name
+
+            - Fact:    Inhabits
+              Meaning: The animal lives somewhere.
+              When:    !expr This.Name == Locals.PetName
+              Assign:
+                Domicile: !expr This.Domicile
+
+            - Fact:   PersonExists
+              Meaning: A person exists.
+              Assign:
+                PersonName: !expr This.Name
+
+            - Fact:    Inhabits
+              Meaning: The person lives in the same place as the animal.
+              When:    !expr This.Name == Locals.PersonName AND This.Domicile == Locals.Domicile
+
+        Assert:
+            IsAPet:
+                Person: !expr Locals.PersonName
+                Pet:    !expr Locals.PetName
+

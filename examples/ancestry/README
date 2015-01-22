@@ -1,0 +1,74 @@
+
+REVISION
+
+  $Id$
+
+OVERVIEW
+
+  This example illustrates a simple production system with a recursive
+  rule. The rule infers ancestor-descendant relationships.
+
+  Note that this engine can rapidly grow the size of the database for
+  deep hierarchies.
+
+COMPILING THE ENGINE
+
+  After installing Giles, this engine can be compiled using the following
+  command:
+
+    $ giles -c -o ancestry.sql ancestry.yml
+
+  Note the use of the '-c' flag, indicating that the user knows that a
+  cycle exists in the rule set.
+
+LOADING THE ENGINE
+
+  The engine can be loaded into a SQLite instance with the following commands:
+
+    $ sqlite3
+    sqlite> PRAGMA recursive_triggers = ON; /* If necessary. */
+    sqlite> PRAGMA foreign_keys = ON; /* If necessary. */
+    sqlite> .read ancestry.sql
+
+USING THE ENGINE
+
+  This engine describes a single class of facts, called 'IsAncestor'.
+  This describes an ancestor-descendant relationship.
+
+  Asserting known ancestor-descendant relationships will build up a
+  working fact set:
+
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Betsy', 'James');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Betsy', 'Marvin');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Rob', 'James');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Rob', 'Marvin');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Julie', 'Betsy');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Bob', 'Betsy');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Ann', 'Rob');
+    INSERT INTO Giles_IsAncestor_Facts(Ancestor, Descendant) VALUES('Jim', 'Rob');
+
+  These statements are also available in the input.sql file that can be read
+  directly by sqlite.
+
+  The engine will automatically infer the ancestor-descendant relationship for
+  all known people:
+
+    SELECT Ancestor AS Ancestors FROM Giles_IsAncestor_Facts WHERE Descendant = 'Marvin';
+    
+    Ancestors
+    ---------
+    Betsy
+    Rob
+    Julie
+    Bob
+    Ann
+    Jim
+
+  This selection statement is also available in the output.sql file that can
+  be read directly by sqlite.
+
+LICENSE
+
+  The terms and conditions under which this software is released are
+  set forth in README.LICENSE.
+
