@@ -1,6 +1,6 @@
 {######################################################################
  #
- # $Id$
+ # $Id: 8ff477f206c5ce01836efa3ac97ed15c4b06072f $
  #
  ######################################################################
  #
@@ -1021,7 +1021,7 @@
         FROM
           {{prefix}}_{{rule_clause.suppressed_fact}}_shadow
         WHERE
-          suppressing_rule = '{{rule_name}}' AND suppressing_frame = old.id;
+          suppressing_rule = '{{rule_name}}' AND suppressing_frame = old.id
         ;
 
         DELETE FROM {{prefix}}_{{rule_clause.suppressed_fact}}_shadow WHERE suppressing_rule = '{{rule_name}}' AND suppressing_frame = old.id;

@@ -1,6 +1,6 @@
 ######################################################################
 #
-# $Id$
+# $Id: aa13c518509b431ccdebc7523def35ad4548da75 $
 #
 ######################################################################
 #
@@ -35,6 +35,10 @@ Parameters:
     Upper:   100
 
   SuppressAlertPatterns: # Suppress alerts whose Message fields match any of these patterns.
+    Dictionary: TRUE
+    Default: ''
+
+  UnsuppressAlertPatterns: # Don't suppress alerts if there is an exemption for that alert pattern.
     Dictionary: TRUE
     Default: ''
 
@@ -378,14 +382,20 @@ Rules:
                          'to a less-secure network (' . Locals.NetworkB . ', level ' . string_of_int(Locals.LevelB) . ')')
 
   SuppressAlerts:
-    Description: Suppress alerts that match the given pattern.
+    Description: Suppress alerts that match the given pattern, unless there is an UnsuppressAlertPatern for it.
 
     MatchAll:
       - Fact:   SuppressAlertPatterns
         Meaning: The system has been configured to supress alerts matching a certain pattern.
         Assign:
+          SuppressionName: !expr This.Key
           Pattern: !expr This.Value
           PatternLength: !expr String_Of_Int(strlen(This.Value))
+
+    MatchNone:
+      - Fact:    UnsuppressAlertPatterns
+        Meaning: The system was not configured to exempt this alert based on a different pattern.
+        When: !expr This.Value == Locals.SuppressionName
 
     Suppress:
       Fact: Alert
