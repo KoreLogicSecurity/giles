@@ -472,23 +472,20 @@ def generate(new_prefix, filename, description, facts, parameters, rules):
     #
     ####################################################################
 
-    synthetic_assignment_count = 0
-    for rule_name, rule in rules.items():
-        for i, match_clause in enumerate(rule["matches"]):
-            if "assignments" in match_clause:
-                assignments = set(match_clause["assignments"].keys())
-                for j, subsequent_clause in enumerate(chain(rule["matches"][i + 1:], rule["inverted_matches"])):
-                    if subsequent_clause["when"] is not None:
-                        clauses = flatten_local_predicates(subsequent_clause["when"])
-                        for clause in clauses:
-                            used_vars = set(find_locals(clause))
-                            if used_vars.intersection(assignments):
-                                if not isinstance(clause.arg2, expression.LocalReferenceNode):
-                                    synthetic_assignment_count += 1
-                                    synthetic_name = "synthetic_assignment_%d" % synthetic_assignment_count
-                                    prev_clause = rule["matches"][j - 2]
-                                    generate_synthetic_assignment(clause.arg2, rule, prev_clause, synthetic_name)
-                                    clause.arg2 = expression.LocalReferenceNode(synthetic_name, clause.arg2.type)
+    synthetic_count = 0
+    for rule_name, rule in rules.items():                                                   # Walk through each rule.
+        for i, match_clause in enumerate(chain(rule["matches"], rule["inverted_matches"])): # Walk through each match subclause.
+            if match_clause["when"] is not None:                                            # If that subclause has a complex predicate.
+                clauses = flatten_local_predicates(match_clause["when"])                    # Grab the parts of that predicate.
+                for clause in clauses:                                                      # Walk through those parts.
+                    if len(set(find_locals(clause))):                                       # If that part uses local variables.
+                        if not isinstance(clause.arg2, expression.LocalReferenceNode):      # And it's part of a complex expression.
+                            synthetic_count += 1                                            # We know we'll need a synthetic assign.
+                            synthetic_name = "synthetic_assignment_%d" % synthetic_count    # Create a name for it.
+                            prev_i = min(len(rule["matches"]) - 1, max(i - 1, 0))           # Grab the previous assignable clause's index.
+                            prev_clause = rule["matches"][prev_i]                           # And grab the clause itself.
+                            generate_synthetic_assignment(clause.arg2, rule, prev_clause, synthetic_name)
+                            clause.arg2 = expression.LocalReferenceNode(synthetic_name, clause.arg2.type)
 
     ####################################################################
     #

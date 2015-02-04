@@ -76,8 +76,21 @@ Rules:
 
         MatchNone:
             - Fact:     KnownException
-              Meaning:  We know that a particular person isn't a member of a certain family.
-              When:     !expr This.FirstName == Locals.FirstName AND
+              Meaning:  We know that a particular person isn't a member of a certain family (uppercase).
+              When:     !expr This.FirstName == UPPERCASE(Locals.FirstName) AND
+                              This.Family    == UPPERCASE(Locals.Family)
+
+            - Fact:     KnownException
+              Meaning:  We know that a particular person isn't a member of a certain family (lowercase).
+              When:     !expr This.FirstName == LOWERCASE(Locals.FirstName) AND
+                              This.Family    == LOWERCASE(Locals.Family)
+
+            - Fact:     KnownException
+              Meaning:  We know that a particular person isn't a member of a certain family (titlecase).
+              When:     !expr This.FirstName == UPPERCASE(SUBSTR(Locals.FirstName, 1, 1))
+                                                .
+                                                LOWERCASE(SUBSTR(Locals.FirstName, 2, STRLEN(Locals.FirstName)))
+                              AND
                               This.Family    == UPPERCASE(SUBSTR(Locals.LastName, 1, 1))
                                                 .
                                                 LOWERCASE(SUBSTR(Locals.LastName, 2, STRLEN(Locals.LastName)))
